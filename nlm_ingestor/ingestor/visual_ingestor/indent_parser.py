@@ -81,6 +81,18 @@ class IndentParser:
             #     print(f"block type: {block['list_type']}") if block['block_type'] == "list_item" else None
             #     print(f"prec text: {prev_block['block_text']}")
             def get_level(new_class_name):
+                visual_lines = block.get("visual_lines", [])
+                box_style_left = -1
+                box_style_top = -1
+                
+                if visual_lines and len(visual_lines) > 0:
+                    first_line = visual_lines[0]
+                    box_style = first_line.get("box_style", [])
+                    if len(box_style) > 1:
+                        box_style_left = box_style[1]
+                    if len(box_style) > 0:
+                        box_style_top = box_style[0]
+                        
                 new_class = {
                     "name": new_class_name, 
                     "upper": False, 
@@ -89,8 +101,8 @@ class IndentParser:
                     "list_type": "", 
                     "center_italic": False,
                     "block_type": block["block_type"],
-                    "left": block["visual_lines"][0]["box_style"][1],
-                    "top": block["visual_lines"][0]["box_style"][0],
+                    "left": box_style_left,
+                    "top": box_style_top,
                 }
                 header_numbers_limit = sum(c.isdigit() for c in block['block_text']) < 10
                 not_symbol_start = block["block_text"][0].isalnum()
@@ -171,9 +183,9 @@ class IndentParser:
                         same_attr = {k: v for k, v in new_class.items() if k not in ignore_keys} == \
                             {k: v for k, v in c.items() if k not in ignore_keys}
                         # < 30 is para indent or they have same top (multi column)
-                        page_style = list(self.doc.page_styles[block["visual_lines"][0]["page_idx"]])
+                        page_style = list(self.doc.page_styles[block["visual_lines"][0]["page_idx"]]) if block.get("visual_lines") and block["visual_lines"] and "page_idx" in block["visual_lines"][0] and 0 <= block["visual_lines"][0]["page_idx"] < len(self.doc.page_styles) else []
                         indent_match = True
-                        if not page_style[3].get("probable_multi_column", False):
+                        if len(page_style) > 3 and not page_style[3].get("probable_multi_column", False):
                             indent_match = abs(new_class["left"] - c["left"]) < 30 or\
                                            abs(new_class["top"] - c["top"]) < 3 or \
                                            (new_class.get("center_aligned", False) and c.get("center_aligned", False))
@@ -242,10 +254,12 @@ class IndentParser:
                         break
                 all_caps_largest_font = True
                 if len(level_stack) > 0:
-                    top_level_class = self.doc.class_line_styles[level_stack[0]["name"]]
-                    new_class_style = self.doc.class_line_styles[new_class_name]
-                    if new_class_style[2] < top_level_class[2]:
-                        all_caps_largest_font = False
+                    # Add safety check for level_stack access
+                    if level_stack:
+                        top_level_class = self.doc.class_line_styles[level_stack[0]["name"]]
+                        new_class_style = self.doc.class_line_styles[new_class_name]
+                        if new_class_style[2] < top_level_class[2]:
+                            all_caps_largest_font = False
 
                 if line.numbered_line and new_class["list_type"] in list_indents:
                     prev_ch = list_indents[new_class["list_type"]]["last_sum"]
@@ -687,6 +701,16 @@ class IndentParser:
             if LEVEL_DEBUG:
                 print(f'{class_name} level set to {indent}')
                 print(indent_reason)
+
+            # Add safety check for block index access
+            if block_idx >= 2:
+                prev_block = self.blocks[block_idx - 1]
+                prev_prev_block = self.blocks[block_idx - 2]
+                
+                if prev_block.get("block_type") == "header" and \
+                        prev_block.get("level", 0) - prev_prev_block.get("level", 0) == 1 and \
+                        block.get("level", 0) < prev_block.get("level", 0):
+                    prev_block["block_type"] = "para"
 
             # if prev_block and indent != prev_block["level"]:
             if prev_block and False:
