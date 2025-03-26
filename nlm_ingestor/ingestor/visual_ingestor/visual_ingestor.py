@@ -3028,7 +3028,7 @@ class Doc:
                             organized_blocks[j]["header_block_idx"] += 1
                         j += 1
 
-                    organized_blocks[idx] = header_block
+                    organized_blocks[min(idx, len(organized_blocks) - 1)] = header_block
                     if len(para_block["visual_lines"]):
                         para_props = line_parser.Line(para_block["block_text"])
                         if para_props.numbered_line:
@@ -3067,7 +3067,7 @@ class Doc:
                                                                     organized_blocks, table_start_idx, table_end_idx)
         else:
             # one row table
-            tr_block = organized_blocks[table_start_idx]
+            tr_block = organized_blocks[min(table_start_idx, len(organized_blocks) - 1)]
             tr_block['block_type'] = get_block_type(False, False, tr_block["block_text"])[0]
             # for parsing special lists
             tr_block['one_row_table'] = True
@@ -4031,18 +4031,21 @@ class Doc:
     def merge_para_blocks(self):
         temp_blocks = []
         for blk_idx, blk in enumerate(self.blocks):
-            if len(temp_blocks) \
-                    and (temp_blocks[-1]["block_type"] == blk["block_type"] == "para") \
-                    and (temp_blocks[-1]["block_class"] == blk["block_class"] or
-                         temp_blocks[-1]["visual_lines"][-1]["word_classes"][-1] ==
-                         blk["visual_lines"][0]["word_classes"][0]) \
-                    and blk["page_idx"] == temp_blocks[-1]["page_idx"] \
-                    and ends_with_sentence_delimiter_pattern.search(temp_blocks[-1]["block_text"]) is None \
-                    and not blk.get("is_row_group", False) \
-                    and (blk["box_style"][0] - (temp_blocks[-1]["box_style"][0] + temp_blocks[-1]["box_style"][4]) <=
-                         blk["visual_lines"][0]['line_style'][2] or
-                         temp_blocks[-1]['visual_lines'][-1]["line_parser"].get("last_word_is_co_ordinate_conjunction",
-                                                                                False)):
+            if len(temp_blocks) > 0 and \
+                (temp_blocks[-1]["block_type"] == blk["block_type"] == "para") and \
+                (temp_blocks[-1]["block_class"] == blk["block_class"] or
+                    (temp_blocks[-1].get("visual_lines") and len(temp_blocks[-1]["visual_lines"]) > 0 and 
+                    len(temp_blocks[-1]["visual_lines"][-1].get("word_classes", [])) > 0 and
+                    blk.get("visual_lines") and len(blk["visual_lines"]) > 0 and 
+                    len(blk["visual_lines"][0].get("word_classes", [])) > 0 and
+                    temp_blocks[-1]["visual_lines"][-1]["word_classes"][-1] == blk["visual_lines"][0]["word_classes"][0])) and \
+                blk["page_idx"] == temp_blocks[-1]["page_idx"] and \
+                ends_with_sentence_delimiter_pattern.search(temp_blocks[-1]["block_text"]) is None and \
+                not blk.get("is_row_group", False) and \
+                (len(blk["visual_lines"]) > 0 and len(blk["visual_lines"][0].get('line_style', [])) > 2 and
+                    blk["box_style"][0] - (temp_blocks[-1]["box_style"][0] + temp_blocks[-1]["box_style"][4]) <=
+                    blk["visual_lines"][0]['line_style'][2] or
+                    temp_blocks[-1]['visual_lines'][-1]["line_parser"].get("last_word_is_co_ordinate_conjunction", False)):
                 # We are merging centre_aligned para blocks even if the distance between blocks are considerable
                 merged_text = temp_blocks[-1]["block_text"]
                 merged_text = merged_text + \
@@ -4172,16 +4175,26 @@ class Doc:
                 else:
                     # Add the same block anyways
                     temp_blocks.append(blk)
-            elif len(temp_blocks) \
-                    and (temp_blocks[-1]["block_type"] == "para" and blk["block_type"] == "header") \
-                    and (temp_blocks[-1]["block_class"] == blk["block_class"] or
-                         temp_blocks[-1]["visual_lines"][-1]["word_classes"][-1] ==
-                         blk["visual_lines"][0]["word_classes"][0]) \
-                    and blk["page_idx"] == temp_blocks[-1]["page_idx"] \
-                    and ends_with_sentence_delimiter_pattern.search(temp_blocks[-1]["block_text"]) is None \
-                    and not blk.get("is_row_group", False) \
-                    and temp_blocks[-1]['visual_lines'][-1]["line_parser"].get("last_word_is_co_ordinate_conjunction",
-                                                                                False):
+            elif (len(temp_blocks) > 0 
+                and temp_blocks[-1].get("block_type") == "para" 
+                and blk.get("block_type") == "header"
+                and blk.get("page_idx") == temp_blocks[-1].get("page_idx")
+                and not blk.get("is_row_group", False)
+                and ends_with_sentence_delimiter_pattern.search(temp_blocks[-1].get("block_text", "")) is None
+                and (
+                    temp_blocks[-1].get("block_class") == blk.get("block_class") or
+                    (
+                        len(temp_blocks[-1].get("visual_lines", [])) > 0 and
+                        len(blk.get("visual_lines", [])) > 0 and
+                        len(temp_blocks[-1]["visual_lines"][-1].get("word_classes", [])) > 0 and
+                        len(blk["visual_lines"][0].get("word_classes", [])) > 0 and
+                        temp_blocks[-1]["visual_lines"][-1]["word_classes"][-1] == blk["visual_lines"][0]["word_classes"][0]
+                    )
+                )
+                and (
+                    len(temp_blocks[-1].get("visual_lines", [])) > 0 and
+                    temp_blocks[-1]["visual_lines"][-1].get("line_parser", {}).get("last_word_is_co_ordinate_conjunction", False)
+                )):
                 # We are merging a previous para with a header if the previous para ends with a conjunction and
                 # are of the same block class
                 merged_text = temp_blocks[-1]["block_text"]
