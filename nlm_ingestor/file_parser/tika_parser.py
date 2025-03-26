@@ -14,7 +14,7 @@ class TikaFileParser(FileParser):
 
     def parse_to_html(self, filepath, do_ocr=False):
         # Turn off OCR by default
-        timeout = 3000
+        timeout = 12000
         headers = {
             "X-Tika-OCRskipOcr": "true",
             "X-Tika-PDFOcrStrategy": "auto",
