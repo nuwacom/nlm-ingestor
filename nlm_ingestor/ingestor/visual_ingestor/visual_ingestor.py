@@ -554,6 +554,7 @@ class Doc:
             print(f"Checkpoint 4 Finished. Wall time: {((new_wall_time - self.wall_time) * 1000):.2f}ms")
             self.wall_time = new_wall_time
         self.label_table_of_content()
+        self._normalize_table_markers()
         if self.render_format == "json":
             self.json_dict = block_renderer.BlockRenderer(self).render_json()
         elif self.render_format == "html":
@@ -561,6 +562,40 @@ class Doc:
         else:
             self.json_dict = block_renderer.BlockRenderer(self).render_json()
             self.html_str = block_renderer.BlockRenderer(self).render_html()
+
+    def _normalize_table_markers(self):
+        """Ensure every is_table_start has a matching is_table_end.
+
+        Tables carry a paired (is_table_start .. is_table_end) marker on the
+        first/last row block (set by table_parser.TableParser). Post-table merge
+        passes (merge_para_blocks, merge_header_blocks, etc.) can absorb a table's
+        last row into a following block and drop its is_table_end, leaving an
+        unterminated is_table_start. Renderers treat the start..end span as the
+        table's rows, so an unterminated start silently swallows every following
+        block -- whole pages of text -- until the next start or end of document.
+
+        Demote any unpaired is_table_start so its block renders as a normal block
+        and the following content is emitted normally. A genuine, properly closed
+        table is left untouched.
+        """
+        def _demote(block):
+            block.pop("is_table_start", None)
+            block.pop("is_actual_table_start", None)
+            block.pop("has_merged_cells", None)
+
+        open_start = None
+        for block in self.blocks:
+            if block.get("is_table_start"):
+                if open_start is not None:
+                    _demote(open_start)
+                open_start = block
+            if block.get("is_table_end"):
+                if open_start is not None:
+                    open_start = None
+                else:
+                    block.pop("is_table_end", None)
+        if open_start is not None:
+            _demote(open_start)
 
     def visual_lines_to_blocks(self, visual_lines, group_buf=[], block_idx=0, group_is_list=False):
         prev_line_info = group_buf[-1] if len(group_buf) > 0 else None
