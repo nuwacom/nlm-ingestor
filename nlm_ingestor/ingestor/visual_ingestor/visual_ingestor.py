@@ -4066,21 +4066,46 @@ class Doc:
     def merge_para_blocks(self):
         temp_blocks = []
         for blk_idx, blk in enumerate(self.blocks):
-            if len(temp_blocks) > 0 and \
-                (temp_blocks[-1]["block_type"] == blk["block_type"] == "para") and \
-                (temp_blocks[-1]["block_class"] == blk["block_class"] or
-                    (temp_blocks[-1].get("visual_lines") and len(temp_blocks[-1]["visual_lines"]) > 0 and 
+            # Re-join a paragraph that PDF extraction split across block boundaries.
+            # Merge the current block `blk` into the previous accumulator
+            # `temp_blocks[-1]` only when ALL of the clauses below hold.
+            # (Condition is parenthesized -- not backslash-joined -- so each clause
+            #  can carry an explanatory comment; logic is unchanged.)
+            if (
+                len(temp_blocks) > 0
+                # [1] both the accumulator and the current block are paragraphs
+                and (temp_blocks[-1]["block_type"] == blk["block_type"] == "para")
+                # [2] same visual style: identical block_class, OR (fallback) the
+                #     style matches at the seam -- last word's word_class of prev's
+                #     LAST line == first word's word_class of curr's FIRST line. The
+                #     get()/len()>0 chain only guards empty visual_lines/word_classes
+                #     against Index/KeyError; it carries no business logic.
+                and (temp_blocks[-1]["block_class"] == blk["block_class"] or
+                    (temp_blocks[-1].get("visual_lines") and len(temp_blocks[-1]["visual_lines"]) > 0 and
                     len(temp_blocks[-1]["visual_lines"][-1].get("word_classes", [])) > 0 and
-                    blk.get("visual_lines") and len(blk["visual_lines"]) > 0 and 
+                    blk.get("visual_lines") and len(blk["visual_lines"]) > 0 and
                     len(blk["visual_lines"][0].get("word_classes", [])) > 0 and
-                    temp_blocks[-1]["visual_lines"][-1]["word_classes"][-1] == blk["visual_lines"][0]["word_classes"][0])) and \
-                blk["page_idx"] == temp_blocks[-1]["page_idx"] and \
-                ends_with_sentence_delimiter_pattern.search(temp_blocks[-1]["block_text"]) is None and \
-                not blk.get("is_row_group", False) and \
-                (len(blk["visual_lines"]) > 0 and len(blk["visual_lines"][0].get('line_style', [])) > 2 and
+                    temp_blocks[-1]["visual_lines"][-1]["word_classes"][-1] == blk["visual_lines"][0]["word_classes"][0]))
+                # [3] both blocks live on the same page
+                and blk["page_idx"] == temp_blocks[-1]["page_idx"]
+                # [4] prev text does NOT end in a sentence terminator (. ; :), i.e. the
+                #     sentence is unfinished -- so curr is a continuation, not a new para
+                and ends_with_sentence_delimiter_pattern.search(temp_blocks[-1]["block_text"]) is None
+                # [5] current block is not table-row content
+                and not blk.get("is_row_group", False)
+                # [6] proximity OR conjunction. Precedence note: `a and b and c or d`
+                #     means `(a and b and c) or d`, so this is (vertically adjacent) OR
+                #     (prev ends in a coordinating conjunction). box_style is
+                #     (top, left, right, width, height), so box_style[0] + box_style[4]
+                #     = block bottom-y; curr.top - prev.bottom is the vertical gap,
+                #     merged when within ~one line height (line_style[2] ~= font size;
+                #     the >2 guard ensures that field is present). The conjunction
+                #     branch merges continuations even across a large vertical gap.
+                and (len(blk["visual_lines"]) > 0 and len(blk["visual_lines"][0].get('line_style', [])) > 2 and
                     blk["box_style"][0] - (temp_blocks[-1]["box_style"][0] + temp_blocks[-1]["box_style"][4]) <=
                     blk["visual_lines"][0]['line_style'][2] or
-                    temp_blocks[-1]['visual_lines'][-1]["line_parser"].get("last_word_is_co_ordinate_conjunction", False)):
+                    temp_blocks[-1]['visual_lines'][-1]["line_parser"].get("last_word_is_co_ordinate_conjunction", False))
+            ):
                 # We are merging centre_aligned para blocks even if the distance between blocks are considerable
                 merged_text = temp_blocks[-1]["block_text"]
                 merged_text = merged_text + \
