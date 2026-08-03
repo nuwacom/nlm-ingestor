@@ -177,7 +177,7 @@ class Word:
         word = self.text.lower()
         if not word.isalpha():
             if word.isprintable():
-                if not word.isnumeric():
+                if not word.isdecimal():
                     if word.startswith("(") and word.endswith(")"):
                         word = word[1:-1]
                     if word.startswith("-"):
@@ -199,13 +199,13 @@ class Word:
                     if word.startswith("(") and word.endswith(")"):
                         word = word[1:-1]
                     word = word.replace(",", "")
-                    if word.isnumeric() or word.replace(".", "", 1).isnumeric():
+                    if word.isdecimal() or word.replace(".", "", 1).isdecimal():
                         self.is_number = True
                     parts = word.split("-")
                     if (
                         len(parts) == 2
-                        and parts[0].isnumeric()
-                        and parts[1].isnumeric()
+                        and parts[0].isdecimal()
+                        and parts[1].isdecimal()
                     ):
                         self.is_number_range = True
                         self.parts = parts
