@@ -1820,11 +1820,13 @@ class Doc:
             if not same_top and top_gap > 0:
                 row_count = row_count + 1
             should_merge = False
-            if prev_vl['text'].strip()[-1] in ['$', '€', '£'] and len(prev_vl['text']) > 1 and \
-                    not prev_vl['text'].strip()[-2].isspace():
-                vl['text'] = prev_vl['text'].strip()[-1] + vl['text']
-                prev_vl['text'] = prev_vl['text'].strip()[:-1]
-            if prev_vl['text'].strip() in ['$', '€', '£'] and vl['text'].strip()[0] not in ['$', '€', '£', '%']:
+            stripped_prev = prev_vl['text'].strip()
+            if len(stripped_prev) > 1 and stripped_prev[-1] in ['$', '€', '£'] and \
+                    not stripped_prev[-2].isspace():
+                vl['text'] = stripped_prev[-1] + vl['text']
+                prev_vl['text'] = stripped_prev[:-1]
+            if prev_vl['text'].strip() in ['$', '€', '£'] and vl['text'].strip() and \
+                    vl['text'].strip()[0] not in ['$', '€', '£', '%']:
                     # and vl['line_parser']['words'][0]['is_number']):#sometimes it has _ and other stuff
                 should_merge = True
             elif vl["word_classes"][0] != prev_vl["word_classes"][-1] and \
