@@ -8,6 +8,34 @@ from werkzeug.utils import secure_filename
 from nlm_ingestor.ingestor import ingestor_api
 from nlm_utils.utils import file_utils
 
+try:
+    import sentry_sdk
+except ImportError:
+    sentry_sdk = None
+
+
+# Exception frames in this service hold the parsed document text in locals
+# (block_text, line_info, ...); locals are disabled at init and stripped
+# again here as a backstop, along with the uploaded request body.
+def _scrub_sentry_event(event, hint):
+    for section in ("exception", "threads"):
+        for entry in (event.get(section) or {}).get("values") or []:
+            for frame in (entry.get("stacktrace") or {}).get("frames") or []:
+                frame.pop("vars", None)
+    if isinstance(event.get("request"), dict):
+        event["request"].pop("data", None)
+    return event
+
+
+if sentry_sdk and os.environ.get("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.environ["SENTRY_DSN"],
+        environment=os.environ.get("SENTRY_ENVIRONMENT", "unknown"),
+        traces_sample_rate=0.0,
+        include_local_variables=False,
+        before_send=_scrub_sentry_event,
+    )
+
 app = Flask(__name__)
 
 # initialize logging
@@ -59,6 +87,7 @@ def parse_document(
 
     except Exception as e:
         print("error uploading file, stacktrace: ", traceback.format_exc())
+        # exc_info=True also reports the exception to Sentry via the logging integration
         logger.error(
             f"error uploading file, stacktrace: {traceback.format_exc()}",
             exc_info=True,
