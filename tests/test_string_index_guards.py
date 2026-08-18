@@ -50,12 +50,31 @@ class DetectTableOrListDegenerateTest(unittest.TestCase):
     # text inside detect_table_or_list.
 
     def test_empty_current_line_text(self):
-        # line_info['text'][0] crashed on empty text
+        # line_info['text'][0] crashed on empty text; an empty OCR cell must
+        # classify like a whitespace one (geometry decides), not degrade to prose
         is_list, is_table_row = detect(
             [make_line("Data")], make_line(""), make_line("Data")
         )
         self.assertFalse(is_list)
-        self.assertFalse(is_table_row)
+        self.assertTrue(is_table_row)
+
+    def test_whitespace_current_line_matches_empty(self):
+        # whitespace-only text already took the table-row branch before the
+        # guards; empty text must classify the same way
+        is_list, is_table_row = detect(
+            [make_line("Data")], make_line(" "), make_line("Data")
+        )
+        self.assertFalse(is_list)
+        self.assertTrue(is_table_row)
+
+    def test_empty_current_line_item_group_prev_continuing(self):
+        # line_info['text'][-1] in the Item/section veto must not crash once
+        # empty text reaches the table-row branch
+        is_list, is_table_row = detect(
+            [make_line("Item 1")], make_line(""), make_line("Note:")
+        )
+        self.assertFalse(is_list)
+        self.assertTrue(is_table_row)
 
     def test_empty_prev_line_text_multi_line_group(self):
         # prev_line_info['text'][-1] crashed on empty text (period check)
@@ -157,6 +176,84 @@ class DivideParaToHeadersDegenerateTest(unittest.TestCase):
         stub = BlocksStub([blk])
         Doc.divide_para_to_headers(stub)
         self.assertEqual(stub.blocks, [blk])
+
+
+class OrganizeSplitPath(Exception):
+    pass
+
+
+class OrganizeGeometryPath(Exception):
+    pass
+
+
+class OrganizeStub:
+    """Stands in for Doc up to the multi-line-first-cell check in
+    organize_and_indent_blocks; sentinel exceptions record which path the
+    misaligned first cell takes (split off vs kept after the geometric check)."""
+
+    page_svg_tags = {0: [[]]}
+
+    def __init__(self, blocks):
+        self.blocks = blocks
+
+    def check_block_within_table_bbox(self, block):
+        return False
+
+    def make_block(self, vls, block_type, block_idx):
+        # only reached when the block is split on a misaligned first cell
+        raise OrganizeSplitPath()
+
+    def detect_block_center_aligned(self, block, enable_width_check=True):
+        # first self call after the split decision when no split happened
+        raise OrganizeGeometryPath()
+
+
+def make_vl_box(text, top, left, right, height):
+    return {
+        "text": text,
+        "box_style": [top, left, right, right - left, height],
+        "line_style": (0, "normal", 10.0, 0, 0, 2.0),
+        "word_classes": ["cls_1"],
+        "page_idx": 0,
+    }
+
+
+def first_cell_block(first_text):
+    # vls[1] gives vls[0] a misaligned top; vls[2] vertically overlaps vls[0]
+    # to its right, which the geometric check reads as "normal row, no split"
+    vls = [
+        make_vl_box(first_text, top=100.0, left=50.0, right=90.0, height=30.0),
+        make_vl_box("Cell B", top=110.0, left=10.0, right=45.0, height=30.0),
+        make_vl_box("Cell C", top=105.0, left=200.0, right=240.0, height=10.0),
+    ]
+    return {
+        "block_type": "table_row",
+        "block_text": (first_text + " Cell B Cell C").strip(),
+        "block_class": "cls_1",
+        "page_idx": 0,
+        "visual_lines": vls,
+    }
+
+
+class MultiLineFirstCellEmptyTextTest(unittest.TestCase):
+    # Direction of the empty-text case at the multi-line-first-cell check:
+    # an empty OCR first cell must still get the geometric check, exactly like
+    # whitespace or normal text; only a trailing ':' skips it.
+
+    def run_organize(self, block):
+        Doc.organize_and_indent_blocks(OrganizeStub([block]))
+
+    def test_empty_first_cell_still_gets_geometric_check(self):
+        with self.assertRaises(OrganizeGeometryPath):
+            self.run_organize(first_cell_block(""))
+
+    def test_normal_first_cell_gets_geometric_check(self):
+        with self.assertRaises(OrganizeGeometryPath):
+            self.run_organize(first_cell_block("Revenue"))
+
+    def test_colon_first_cell_skips_check_and_splits(self):
+        with self.assertRaises(OrganizeSplitPath):
+            self.run_organize(first_cell_block("Total:"))
 
 
 class WordDegenerateTest(unittest.TestCase):

@@ -1164,7 +1164,8 @@ class Doc:
                     #         and ")" in group_buf[0]['text']
                     #         and group_buf[0]['line_parser']['numbered_line']):
                         is_list = True
-                    elif line_info['text'] and line_info['text'][0] not in line_parser.continuing_chars:
+                    # Empty text (blank OCR cell) classifies like whitespace: geometry decides.
+                    elif not line_info['text'] or line_info['text'][0] not in line_parser.continuing_chars:
                         # print("table start buf -------")
                         # for idx, gb in enumerate(group_buf):
                         #     print(">>>>", gb['text'], gb['line_parser']['numbered_line'])
@@ -1210,7 +1211,7 @@ class Doc:
                         if is_table_row and (group_buf[0]['text'].lower().startswith("section") or
                                              group_buf[0]['text'].startswith("Item")) and \
                                 ((prev_line_info['text'] and prev_line_info['text'][-1] in line_parser.continuing_chars and
-                                  (line_info['text'][-1] in line_parser.continuing_chars or
+                                  ((line_info['text'] and line_info['text'][-1] in line_parser.continuing_chars) or
                                    (prev_line_info['text'].lower().startswith("section") and
                                     prev_line_info['word_classes'][-1] == line_info['word_classes'][0]))) or
                                  (group_buf[0]['word_classes'][0] != line_info['word_classes'][0])):
@@ -2187,7 +2188,8 @@ class Doc:
                             misaligned_top = False
                             break
                 # Check if we have a multi-line first cell element.
-                if misaligned_top and split_vl['text'] and split_vl['text'][-1] not in [":"]:
+                # Empty text (blank OCR cell) does not end with ':', so it still gets the geometric check.
+                if misaligned_top and not split_vl['text'].endswith(":"):
                     min_top = box_0[0]
                     max_bottom = box_0[0] + box_0[4]
                     prev_vl = vls[0]
