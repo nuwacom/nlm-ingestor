@@ -1164,7 +1164,7 @@ class Doc:
                     #         and ")" in group_buf[0]['text']
                     #         and group_buf[0]['line_parser']['numbered_line']):
                         is_list = True
-                    elif line_info['text'][0] not in line_parser.continuing_chars:
+                    elif line_info['text'] and line_info['text'][0] not in line_parser.continuing_chars:
                         # print("table start buf -------")
                         # for idx, gb in enumerate(group_buf):
                         #     print(">>>>", gb['text'], gb['line_parser']['numbered_line'])
@@ -1172,7 +1172,7 @@ class Doc:
                         is_table_row = True
                         if len(group_buf) > 1:
                             if (not vhu.compare_top(group_buf[-1], group_buf[-2])) and \
-                                    prev_line_info['text'][-1] in ["."]:
+                                    prev_line_info['text'] and prev_line_info['text'][-1] in ["."]:
                                 # We have a multi line data here. If the previous VL is ending with '.', consider
                                 # it not a table row.
                                 is_table_row = False
@@ -1209,13 +1209,14 @@ class Doc:
 
                         if is_table_row and (group_buf[0]['text'].lower().startswith("section") or
                                              group_buf[0]['text'].startswith("Item")) and \
-                                ((prev_line_info['text'][-1] in line_parser.continuing_chars and
+                                ((prev_line_info['text'] and prev_line_info['text'][-1] in line_parser.continuing_chars and
                                   (line_info['text'][-1] in line_parser.continuing_chars or
                                    (prev_line_info['text'].lower().startswith("section") and
                                     prev_line_info['word_classes'][-1] == line_info['word_classes'][0]))) or
                                  (group_buf[0]['word_classes'][0] != line_info['word_classes'][0])):
                             is_table_row = False
                         elif is_table_row and group_buf[0]['text'].lower().startswith("section") and \
+                                prev_line_info["text"].strip() and \
                                 section_num_pattern.search(prev_line_info["text"].strip().split()[-1]) is not None:
                             # The last part of the text is like 1.1 and
                             # then there is a gap between the number and section heading
@@ -1900,8 +1901,11 @@ class Doc:
                                     max_merge_gap = max(max_merge_gap, gap)
                     else:
                         should_merge = True
-                    if should_merge and prev_vl['text'].strip()[-1] in ['$', '€', '£', '%'] and \
-                            vl['text'].strip()[0] in ['$', '€', '£', '%']:
+                    stripped_prev = prev_vl['text'].strip()
+                    stripped_vl = vl['text'].strip()
+                    if should_merge and stripped_prev and stripped_vl and \
+                            stripped_prev[-1] in ['$', '€', '£', '%'] and \
+                            stripped_vl[0] in ['$', '€', '£', '%']:
                         should_merge = False
                 elif is_table_row and \
                         not same_top and \
@@ -2183,7 +2187,7 @@ class Doc:
                             misaligned_top = False
                             break
                 # Check if we have a multi-line first cell element.
-                if misaligned_top and split_vl['text'][-1] not in [":"]:
+                if misaligned_top and split_vl['text'] and split_vl['text'][-1] not in [":"]:
                     min_top = box_0[0]
                     max_bottom = box_0[0] + box_0[4]
                     prev_vl = vls[0]
@@ -4005,6 +4009,7 @@ class Doc:
         for blk_idx, blk in enumerate(self.blocks):
             if (blk["block_type"] == "para" or (blk["block_type"] == "list_item"
                                                 and blk.get("list_type", "NA") == "letter"
+                                                and blk["block_text"]
                                                 and blk["block_text"][0].isupper())) and \
                     ends_with_sentence_delimiter_pattern.search(blk["block_text"]) is None and \
                     not blk.get("is_row_group", False) and len(blk["visual_lines"]) > 1:

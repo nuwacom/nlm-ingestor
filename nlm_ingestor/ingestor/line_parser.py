@@ -126,7 +126,7 @@ class Word:
             text_without_punct = text_without_punct[1:]
 
         self.text_without_punct = text_without_punct
-        self.is_noun = self.text_without_punct[0].isupper()
+        self.is_noun = len(text_without_punct) > 0 and text_without_punct[0].isupper()
 
         n = self.check_numeric()
         self.check_date()
