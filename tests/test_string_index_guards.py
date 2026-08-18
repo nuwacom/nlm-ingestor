@@ -257,7 +257,8 @@ class MultiLineFirstCellEmptyTextTest(unittest.TestCase):
 
 
 class WordDegenerateTest(unittest.TestCase):
-    # Regression tests for IndexError in Word.__init__ (is_noun on empty text).
+    # Word("") cannot occur via Line.parse_line (str.split() plus its len == 0
+    # skip); the is_noun guard is defensive hardening for direct constructions.
 
     def test_empty_token(self):
         self.assertFalse(Word("").is_noun)
