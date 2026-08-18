@@ -30,6 +30,10 @@ RUN pip install --upgrade pip setuptools
 RUN apt-get install -y libmagic1
 RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN pip install -r requirements.txt
+# nlm-utils pins urllib3==1.26.6, under sentry-sdk's declared floor (>=1.26.11),
+# which makes the two unresolvable together. The SDK transport works on 1.26.6,
+# and certifi (its only other dependency) comes in via tika -> requests.
+RUN pip install --no-deps sentry-sdk==2.68.0
 RUN python -m nltk.downloader stopwords
 RUN python -m nltk.downloader punkt
 RUN python -c "import tiktoken; tiktoken.get_encoding(\"cl100k_base\")"
