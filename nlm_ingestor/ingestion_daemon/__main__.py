@@ -8,6 +8,18 @@ from werkzeug.utils import secure_filename
 from nlm_ingestor.ingestor import ingestor_api
 from nlm_utils.utils import file_utils
 
+try:
+    import sentry_sdk
+except ImportError:
+    sentry_sdk = None
+
+if sentry_sdk and os.environ.get("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.environ["SENTRY_DSN"],
+        environment=os.environ.get("SENTRY_ENVIRONMENT", "unknown"),
+        traces_sample_rate=0.0,
+    )
+
 app = Flask(__name__)
 
 # initialize logging
@@ -63,6 +75,9 @@ def parse_document(
             f"error uploading file, stacktrace: {traceback.format_exc()}",
             exc_info=True,
         )
+        # the handler swallows the exception, so report it explicitly
+        if sentry_sdk:
+            sentry_sdk.capture_exception(e)
         status, rc, msg = "fail", 500, str(e)
 
     finally:
