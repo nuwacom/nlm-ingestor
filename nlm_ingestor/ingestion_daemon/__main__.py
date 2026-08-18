@@ -87,13 +87,11 @@ def parse_document(
 
     except Exception as e:
         print("error uploading file, stacktrace: ", traceback.format_exc())
+        # exc_info=True also reports the exception to Sentry via the logging integration
         logger.error(
             f"error uploading file, stacktrace: {traceback.format_exc()}",
             exc_info=True,
         )
-        # the handler swallows the exception, so report it explicitly
-        if sentry_sdk:
-            sentry_sdk.capture_exception(e)
         status, rc, msg = "fail", 500, str(e)
 
     finally:
